@@ -1,0 +1,81 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# --- Load dataset ---
+file_path = "Airbnb_Open_Data.csv"   # update with your filename
+df = pd.read_csv(file_path, low_memory=False)
+
+# --- Cleaning ---
+# Clean money columns
+def clean_money(col):
+    return (col.astype(str)
+               .str.replace(r'[\$,]', '', regex=True)
+               .replace('nan', np.nan)
+               .astype(float))
+
+if "price" in df.columns:
+    df["price"] = clean_money(df["price"])
+if "service fee" in df.columns:
+    df["service fee"] = clean_money(df["service fee"])
+
+# Fix availability
+if "availability 365" in df.columns:
+    df["availability 365"] = pd.to_numeric(df["availability 365"], errors="coerce")
+    df.loc[(df["availability 365"] < 0) | (df["availability 365"] > 365), "availability 365"] = np.nan
+
+# Convert dates
+if "last review" in df.columns:
+    df["last review"] = pd.to_datetime(df["last review"], errors="coerce")
+
+# --- Basic Info ---
+print("Shape:", df.shape)
+if "price" in df.columns:
+    print("\nPrice Summary:\n", df["price"].describe())
+if "room type" in df.columns:
+    print("\nRoom Type Counts:\n", df["room type"].value_counts())
+
+# --- Plots ---
+# 1. Price distribution
+plt.figure(figsize=(8,5))
+sns.histplot(df["price"], bins=100, kde=False)
+plt.xlim(0, 1000)   # focus on <1000
+plt.title("Price Distribution (0-1000)")
+plt.xlabel("Price")
+plt.ylabel("Count")
+plt.show()
+
+# 2. Price by room type
+if "room type" in df.columns:
+    plt.figure(figsize=(8,6))
+    sns.boxplot(x="room type", y="price", data=df[df["price"] < 1000])
+    plt.title("Price by Room Type (below $1000)")
+    plt.xticks(rotation=30)
+    plt.show()
+
+# 3. Average price by neighbourhood group
+if "neighbourhood group" in df.columns:
+    plt.figure(figsize=(8,6))
+    avg_price = df.groupby("neighbourhood group")["price"].mean().sort_values()
+    sns.barplot(x=avg_price.index, y=avg_price.values)
+    plt.title("Average Price by Neighbourhood Group")
+    plt.ylabel("Average Price")
+    plt.show()
+
+# 4. Price vs number of reviews
+if "number of reviews" in df.columns:
+    plt.figure(figsize=(8,6))
+    sns.scatterplot(x="number of reviews", y="price", 
+                    data=df[df["price"] < 1000], alpha=0.3)
+    plt.title("Price vs Number of Reviews (below $1000)")
+    plt.xlabel("Number of Reviews")
+    plt.ylabel("Price")
+    plt.show()
+
+# 5. Correlation heatmap
+plt.figure(figsize=(10,8))
+numeric_df = df.select_dtypes(include=[np.number])
+sns.heatmap(numeric_df.corr(), cmap="coolwarm", annot=False)
+plt.title("Correlation Heatmap (Numeric Columns)")
+plt.show()
